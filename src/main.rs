@@ -1,9 +1,8 @@
 #![deny(warnings)]
 
 use core::{
-    cmp,
-    fmt::{self, Write as _},
-    ops, str,
+    str, 
+    fmt::Write as _ 
 };
 use std::{
     borrow::Cow,
@@ -1312,156 +1311,8 @@ pub(crate) fn top(g: Graph<Node, ()>) -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) struct Escaper<W>
-where
-    W: io::Write,
-{
-    writer: W,
-    error: io::Result<()>,
-}
-
-impl<W> Escaper<W>
-where
-    W: io::Write,
-{
-    fn new(writer: W) -> Self {
-        Escaper {
-            writer,
-            error: Ok(()),
-        }
-    }
-}
-
-impl<W> fmt::Write for Escaper<W>
-where
-    W: io::Write,
-{
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for c in s.chars() {
-            self.write_char(c)?;
-        }
-
-        Ok(())
-    }
-
-    fn write_char(&mut self, c: char) -> fmt::Result {
-        match (|| -> io::Result<()> {
-            match c {
-                '"' => write!(self.writer, "\\")?,
-                _ => {}
-            }
-
-            write!(self.writer, "{}", c)
-        })() {
-            Err(e) => {
-                self.error = Err(e);
-
-                Err(fmt::Error)
-            }
-            Ok(()) => Ok(()),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct Node<'a> {
-    name: Cow<'a, str>,
-    local: Local,
-    max: Option<Max>,
-    dashed: bool,
-}
-
-#[allow(non_snake_case)]
-fn Node<'a, S>(name: S, stack: Option<u64>, dashed: bool) -> Node<'a>
-where
-    S: Into<Cow<'a, str>>,
-{
-    Node {
-        name: name.into(),
-        local: stack.map(Local::Exact).unwrap_or(Local::Unknown),
-        max: None,
-        dashed,
-    }
-}
-
-/// Local stack usage
-#[derive(Clone, Copy, PartialEq)]
-enum Local {
-    Exact(u64),
-    Unknown,
-}
-
-impl fmt::Display for Local {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Local::Exact(n) => write!(f, "{}", n),
-            Local::Unknown => f.write_str("?"),
-        }
-    }
-}
-
-impl Into<Max> for Local {
-    fn into(self) -> Max {
-        match self {
-            Local::Exact(n) => Max::Exact(n),
-            Local::Unknown => Max::LowerBound(0),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-enum Max {
-    Exact(u64),
-    LowerBound(u64),
-}
-
-impl ops::Add<Local> for Max {
-    type Output = Max;
-
-    fn add(self, rhs: Local) -> Max {
-        match (self, rhs) {
-            (Max::Exact(lhs), Local::Exact(rhs)) => Max::Exact(lhs + rhs),
-            (Max::Exact(lhs), Local::Unknown) => Max::LowerBound(lhs),
-            (Max::LowerBound(lhs), Local::Exact(rhs)) => Max::LowerBound(lhs + rhs),
-            (Max::LowerBound(lhs), Local::Unknown) => Max::LowerBound(lhs),
-        }
-    }
-}
-
-impl ops::Add<Max> for Max {
-    type Output = Max;
-
-    fn add(self, rhs: Max) -> Max {
-        match (self, rhs) {
-            (Max::Exact(lhs), Max::Exact(rhs)) => Max::Exact(lhs + rhs),
-            (Max::Exact(lhs), Max::LowerBound(rhs)) => Max::LowerBound(lhs + rhs),
-            (Max::LowerBound(lhs), Max::Exact(rhs)) => Max::LowerBound(lhs + rhs),
-            (Max::LowerBound(lhs), Max::LowerBound(rhs)) => Max::LowerBound(lhs + rhs),
-        }
-    }
-}
-
-fn max_of(mut iter: impl Iterator<Item = Max>) -> Option<Max> {
-    iter.next().map(|first| iter.fold(first, max))
-}
-
-fn max(lhs: Max, rhs: Max) -> Max {
-    match (lhs, rhs) {
-        (Max::Exact(lhs), Max::Exact(rhs)) => Max::Exact(cmp::max(lhs, rhs)),
-        (Max::Exact(lhs), Max::LowerBound(rhs)) => Max::LowerBound(cmp::max(lhs, rhs)),
-        (Max::LowerBound(lhs), Max::Exact(rhs)) => Max::LowerBound(cmp::max(lhs, rhs)),
-        (Max::LowerBound(lhs), Max::LowerBound(rhs)) => Max::LowerBound(cmp::max(lhs, rhs)),
-    }
-}
-
-impl fmt::Display for Max {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Max::Exact(n) => write!(f, "= {}", n),
-            Max::LowerBound(n) => write!(f, ">= {}", n),
-        }
-    }
-}
+mod prelude;
+use prelude::*;
 
 // used to track indirect function calls (`fn` pointers)
 #[derive(Default, Debug)]
