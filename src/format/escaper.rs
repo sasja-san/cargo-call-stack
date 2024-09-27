@@ -1,8 +1,4 @@
 
-  /*********************************************/
- /*** PROBABLY ONLY FOR OUTPUT/FORMAT STUFF ***/
-/*********************************************/
-
 use core::fmt;
 use std::io;
 
@@ -14,33 +10,7 @@ where
     pub error: io::Result<()>,
 }
 
-mod things {
-    use std::io::Write;
 
-    use super::Escaper;
-
-
-    impl<W:Write> Escaper<W> {
-        pub fn _llvm_things(&mut self, _llfile:&[u8]) {
-
-        }
-    }
-}
-mod elfthings {
-    use std::io::Write;
-
-    use super::Escaper;
-
-
-    impl<W:Write> Escaper<W> {
-        pub fn _elf_things(&mut self, _llfile:&[u8]) {
-
-        }
-    }
-}
-
-
-// #[allow(dead_code)]
 impl<W> Escaper<W>
 where
     W: io::Write,
@@ -66,21 +36,25 @@ where
     }
 
     fn write_char(&mut self, c: char) -> fmt::Result {
-        match (|| -> io::Result<()> {
-            match c {
-                '"' => write!(self.writer, "\\")?,
-                _ => {}
+        if c == '"' {
+            /* ████████╗██╗  ██╗███████╗    ██╗     ██╗███╗   ██╗███████╗    */
+            /* ╚══██╔══╝██║  ██║██╔════╝    ██║     ██║████╗  ██║██╔════╝██╗ */
+            /*    ██║   ███████║█████╗      ██║     ██║██╔██╗ ██║█████╗  ╚═╝ */
+            /*    ██║   ██╔══██║██╔══╝      ██║     ██║██║╚██╗██║██╔══╝  ██╗ */
+            /*    ██║   ██║  ██║███████╗    ███████╗██║██║ ╚████║███████╗╚═╝ */
+            /*    ╚═╝   ╚═╝  ╚═╝╚══════╝    ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    */
+            self.error = write!(self.writer, "\\");
+            if let Err(_) = self.error {
+                return Err(fmt::Error);
             }
-
-            write!(self.writer, "{}", c)
-        })() {
-            Err(e) => {
-                self.error = Err(e);
-
-                Err(fmt::Error)
-            }
-            Ok(()) => Ok(()),
         }
+
+        self.error = write!(self.writer, "{}", c);
+        if let Err(_) = self.error {
+            return Err(fmt::Error); 
+        }
+
+        return Ok(());
     }
 }
 
