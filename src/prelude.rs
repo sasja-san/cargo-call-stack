@@ -1,5 +1,5 @@
 
-#![allow(warnings)] // @NOCHECKIN
+// #![allow(warnings)] // @NOCHECKIN
 
 
       /*********************************************/
@@ -44,6 +44,9 @@ where
   /*********************************************/
  /***             LOCAL                     ***/
 /*********************************************/
+
+use core::fmt;
+
 /// Local stack usage
 #[derive(Clone, Copy, PartialEq)]
 pub enum Local {
@@ -128,69 +131,5 @@ impl fmt::Display for Max {
         }
     }
 }
-
-
-
-  /*********************************************/
- /*** PROBABLY ONLY FOR OUTPUT/FORMAT STUFF ***/
-/*********************************************/
-
-use core::fmt::{self, Write as _};
-use std::io::{self, BufRead, BufReader, Read, Write};
-
-pub struct Escaper<W>
-where
-    W: io::Write,
-{
-    pub writer: W,
-    pub error: io::Result<()>,
-}
-
-impl<W> Escaper<W>
-where
-    W: io::Write,
-{
-    pub fn new(writer: W) -> Self {
-        Escaper {
-            writer,
-            error: Ok(()),
-        }
-    }
-}
-
-impl<W> fmt::Write for Escaper<W>
-where
-    W: io::Write,
-{
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for c in s.chars() {
-            self.write_char(c)?;
-        }
-
-        Ok(())
-    }
-
-    fn write_char(&mut self, c: char) -> fmt::Result {
-        match (|| -> io::Result<()> {
-            match c {
-                '"' => write!(self.writer, "\\")?,
-                _ => {}
-            }
-
-            write!(self.writer, "{}", c)
-        })() {
-            Err(e) => {
-                self.error = Err(e);
-
-                Err(fmt::Error)
-            }
-            Ok(()) => Ok(()),
-        }
-    }
-}
-
-
-
-
 
 

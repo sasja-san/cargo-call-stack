@@ -1,15 +1,12 @@
 #![deny(warnings)]
 
-use core::{
-    str, 
-    fmt::Write as _ 
-};
+use core::str; // { str, // fmt::Write as _ };
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     env,
     fs::{self, File},
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{self, BufRead, BufReader, Read}, //, Write},
     path::PathBuf,
     process::{self, Command, Stdio},
     time::SystemTime,
@@ -18,7 +15,7 @@ use std::{
 use anyhow::{anyhow, bail};
 use ar::Archive;
 use cargo_project::{Artifact, Profile, Project};
-use clap::{Parser, ValueEnum};
+use clap::Parser; // , ValueEnum};
 use env_logger::{Builder, Env};
 use filetime::FileTime;
 use log::{error, warn};
@@ -26,7 +23,7 @@ use petgraph::{
     algo,
     graph::{DiGraph, NodeIndex},
     visit::{Dfs, Reversed, Topo},
-    Direction, Graph,
+    Direction, // Graph,
 };
 use walkdir::WalkDir;
 use xmas_elf::{sections::SectionData, symbol_table::Entry, ElfFile};
@@ -36,15 +33,20 @@ use crate::{
     thumb::Tag,
 };
 
+
+mod prelude; use prelude::*;
+mod format;
+
 mod ir;
 mod thumb;
 mod wrapper;
 
-#[derive(ValueEnum, PartialEq, Debug, Clone, Copy)]
-enum OutputFormat {
-    Dot,
-    Top,
-}
+
+// #[derive(ValueEnum, PartialEq, Debug, Clone, Copy)]
+// enum OutputFormat {
+//     Dot,
+//     Top,
+// }
 
 /// Generate a call graph and perform whole program stack usage analysis
 #[derive(Parser, Debug)]
@@ -76,7 +78,7 @@ struct Args {
 
     /// Output format
     #[arg(long, default_value = "dot")]
-    format: OutputFormat,
+    format: format::OutputFormat,
 
     /// consider only the call graph that starts from this node
     start: Option<String>,
@@ -91,9 +93,6 @@ fn main() -> anyhow::Result<()> {
         }
     }
 }
-
-// Font used in the dot graphs
-const FONT: &str = "monospace";
 
 #[allow(deprecated)]
 fn run() -> anyhow::Result<i32> {
@@ -1202,117 +1201,39 @@ fn run() -> anyhow::Result<i32> {
         }
     }
 
+            /*  ██████╗ ██╗   ██╗████████╗██████╗ ██╗   ██╗████████╗ */
+            /* ██╔═══██╗██║   ██║╚══██╔══╝██╔══██╗██║   ██║╚══██╔══╝ */
+            /* ██║   ██║██║   ██║   ██║   ██████╔╝██║   ██║   ██║    */
+            /* ██║   ██║██║   ██║   ██║   ██╔═══╝ ██║   ██║   ██║    */
+            /* ╚██████╔╝╚██████╔╝   ██║   ██║     ╚██████╔╝   ██║    */
+            /*  ╚═════╝  ╚═════╝    ╚═╝   ╚═╝      ╚═════╝    ╚═╝    */
+
+    /* @PLACEHOLDER 
+     *      A future improvement is to have a program argument such as
+     *      `--output my_graph.dot` and then open a file handle to it,
+     *      and all that jazz.
+     **/
+    const OUTPUT_TO_FILE: bool = false;
+    let _out = if OUTPUT_TO_FILE {
+        // const DUMMY_FILEPATH: &str = "testfile.dot";
+        let f = io::stdout().lock(); // do_magic(DUMMY_FILEPATH);
+        f
+    } else {
+        let out = io::stdout();
+        out.lock()
+    };
+    
+
+
     match args.format {
-        OutputFormat::Dot => dot(g, &cycles)?,
-        OutputFormat::Top => top(g)?,
+        format::OutputFormat::Dot => format::dot(&g, &cycles )?,
+        format::OutputFormat::Top => format::top(&g)?,
     }
 
     Ok(0)
 }
 
-fn dot(g: Graph<Node, ()>, cycles: &[Vec<NodeIndex>]) -> io::Result<()> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
 
-    writeln!(stdout, "digraph {{")?;
-    writeln!(stdout, "    node [fontname={} shape=box]", FONT)?;
-
-    for (i, node) in g.raw_nodes().iter().enumerate() {
-        let node = &node.weight;
-
-        write!(stdout, "    {} [label=\"", i,)?;
-
-        let mut escaper = Escaper::new(&mut stdout);
-        write!(escaper, "{}", rustc_demangle::demangle(&node.name)).ok();
-        escaper.error?;
-
-        if let Some(max) = node.max {
-            write!(stdout, "\\nmax {}", max)?;
-        }
-
-        write!(stdout, "\\nlocal = {}\"", node.local,)?;
-
-        if node.dashed {
-            write!(stdout, " style=dashed")?;
-        }
-
-        writeln!(stdout, "]")?;
-    }
-
-    for edge in g.raw_edges() {
-        writeln!(
-            stdout,
-            "    {} -> {}",
-            edge.source().index(),
-            edge.target().index()
-        )?;
-    }
-
-    for (i, cycle) in cycles.iter().enumerate() {
-        writeln!(stdout, "\n    subgraph cluster_{} {{", i)?;
-        writeln!(stdout, "        style=dashed")?;
-        writeln!(stdout, "        fontname={}", FONT)?;
-        writeln!(stdout, "        label=\"SCC{}\"", i)?;
-
-        for node in cycle {
-            writeln!(stdout, "        {}", node.index())?;
-        }
-
-        writeln!(stdout, "    }}")?;
-    }
-
-    writeln!(stdout, "}}")
-}
-
-pub(crate) fn top(g: Graph<Node, ()>) -> io::Result<()> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-
-    assert!(g.is_directed());
-
-    let mut nodes: Vec<Node> = Vec::new();
-    for node in g.raw_nodes().iter() {
-        nodes.push(node.weight.clone());
-    }
-
-    // Locate max
-    if let Some(max) = max_of(nodes.iter().map(|n| n.max.unwrap_or(Max::Exact(0)))) {
-        writeln!(
-            stdout,
-            "{} MAX",
-            match max {
-                Max::Exact(n) => n,
-                Max::LowerBound(n) => n,
-            }
-        )?;
-    }
-
-    writeln!(stdout, "Usage Function")?;
-
-    nodes.sort_by(|a, b| {
-        let a: u64 = if let Local::Exact(n) = a.local { n } else { 0 };
-        let b: u64 = if let Local::Exact(n) = b.local { n } else { 0 };
-        b.cmp(&a)
-    });
-
-    for node in nodes.iter() {
-        let name = rustc_demangle::demangle(&node.name);
-        let val: u64 = if let Local::Exact(n) = node.local {
-            n
-        } else {
-            0
-        };
-        write!(stdout, "{} ", val)?;
-
-        let mut escaper = Escaper::new(&mut stdout);
-        writeln!(escaper, "{}", name).ok();
-        escaper.error?;
-    }
-    Ok(())
-}
-
-mod prelude;
-use prelude::*;
 
 // used to track indirect function calls (`fn` pointers)
 #[derive(Default, Debug)]
